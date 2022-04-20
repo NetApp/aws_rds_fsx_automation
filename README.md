@@ -1,4 +1,4 @@
-# aws_rds_fsx_automation
+# FSx ONTAP, AWS RDS Custom and NetApp Snapmirror Automation
 CFT and Powershell automation scripts for mounting AWS FSx ONTAP on a Custom RDS instance with NetApp SnapMirror installation and configuration.
 
 This solution documents the integration of NetApp FSx ONTAP with AWS Custom RDS for Microsoft SQL Server to act as backend storage for the database. It also documents the deployment and integration of NetApp SnapCenter with FSx ONTAP and custom RDS instance for backup and restore capabilities.
