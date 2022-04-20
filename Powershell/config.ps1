@@ -3,9 +3,9 @@ $Prefix = "netapp"
 
 #Enter the drive letter to be used for storing log folder in RDS Custom Instance (e.g. G,H,I etc.)
 $LogFolderDriveLetter = "J"
-$S3BucketName = "test-snapcenter-bkt"
+$S3BucketName = "s3-bucket-name"
 $S3FileKey = "SnapCenter4.6.exe"         #File Key for the Snapcenter Server installer file from the S3 bucket
-$S3PemFile = "testing.pem"         #AWS pem key (Format - key-name.pem)
+$S3PemFile = "key.pem"         #AWS pem key (Format - key-name.pem)
 
 
 #OS Type - windows or linux, specify windows_2008 if not sure

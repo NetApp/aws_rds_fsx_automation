@@ -23,6 +23,8 @@
 #
 #   - Fsx Ontap File System with NTFS-enabled SVM created along with Fsx and SVM
 #     passwords set
+#
+#   - Ensure that the user account executing this script has the access to manage SSM, IAM, EC2 VPC Endpoint, Lambda and S3.
 
 
 . ./config.ps1
@@ -170,13 +172,13 @@ $PolicyDocument = @"
      "Effect": "Allow",
      "Principal": "*",
      "Action": [
-     "s3:GetObject",
-     "s3:ListBucket",
-     "s3:GetBucketLocation"
+       "s3:GetObject",
+       "s3:ListBucket",
+       "s3:GetBucketLocation"
      ],
      "Resource": [
-     "arn:aws:s3:::*",
-     "arn:aws:s3:::*/*"
+       "arn:aws:s3:::*",
+       "arn:aws:s3:::*/*"
      ]
    }
  ]
@@ -195,8 +197,7 @@ New-EC2VpcEndpoint `
 
 Write-Host "New S3 VPC Endpoint Created"
 
-
-$policy_document ="{`"Version`":`"2012-10-17`",`"Statement`":[{`"Effect`":`"Allow`",`"Action`":`"logs:CreateLogGroup`",`"Resource`":`"arn:aws:logs:us-east-1:982589175402:*`"},{`"Effect`":`"Allow`",`"Action`":[`"logs:CreateLogStream`",`"logs:PutLogEvents`"],`"Resource`":[`"arn:aws:logs:us-east-1:982589175402:log-group:/aws/lambda/*`"]},{`"Effect`":`"Allow`",`"Action`":[`"ec2:CreateNetworkInterface`",`"ec2:DeleteNetworkInterface`",`"ec2:DescribeNetworkInterfaces`",`"lambda:*`",`"s3:*`",`"ec2:*`"],`"Resource`":`"*`"}]}"
+$policy_document ="{`"Version`":`"2012-10-17`",`"Statement`":[{`"Effect`":`"Allow`",`"Action`":`"logs:CreateLogGroup`",`"Resource`":`"arn:aws:logs:*:*:*`"},{`"Effect`":`"Allow`",`"Action`":[`"logs:CreateLogStream`",`"logs:PutLogEvents`"],`"Resource`":[`"arn:aws:logs:*:*:log-group:/aws/lambda/*`"]},{`"Effect`":`"Allow`",`"Action`":[`"s3:GetBucketLocation`", `"s3:GetObject`", `"s3:ListBucket`"],`"Resource`":[`"arn:aws:s3:::*`", `"arn:aws:s3:::*/*`"]},{`"Effect`":`"Allow`",`"Action`":[`"ec2:CreateNetworkInterface`",`"ec2:DeleteNetworkInterface`",`"ec2:DescribeNetworkInterfaces`", `"ec2:DescribeRouteTables`"],`"Resource`":`"*`"}]}"
 
 Write-Host "Creating IAM Policy"
 
@@ -333,138 +334,4 @@ if ($ssm_output.Output -Match "ERROR"){
 }
 
 Write-Host "FSX Mount on RDS Complete"
-
-
-#EC2 SnapMirror Instances
-$commands = @(
- "Start-Transcript -Path 'C:\Users\Administrator\Desktop\Snp_install_transcript.txt'"
- "try{
-   Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
-   Set-AWSCredential -AccessKey ${AwsAccessKey} -SecretKey ${AwsSecretKey}
-   Copy-S3Object -BucketName ${S3BucketName} -Key ${S3FileKey} -LocalFolder C:\Users\Administrator\Desktop
-   Copy-S3Object -BucketName ${S3BucketName} -Key ${S3PemFile} -LocalFolder C:\Users\Administrator\Desktop
-   cd C:\Users\Administrator\Desktop\
-   `$instanceId = (Invoke-WebRequest -Uri http://169.254.169.254/latest/meta-data/instance-id -UseBasicParsing).Content
-   `$pwdsnp = Get-EC2PasswordData -InstanceId `$instanceId -PemFile C:\Users\Administrator\Desktop\${S3PemFile}
-   .\${S3FileKey} /silent /debuglog'C:\Users\Administrator\Desktop\snplog.txt' BI_USER_NAME=Administrator BI_USER_DOMAIN='' BI_USER_FULL_NAME=Administrator BI_USER_PASSWORD=`$pwdsnp SKIP_POWERSHELL_CHECK=true
- }
- catch{
-   Write-Host `$_
-   throw 'Error occurred while installing SnapCenter'
- }"
-)
-
-Write-Host "Installing SnapCenter"
-
-$ssm = Send-SSMCommand `
- -InstanceId $SnapCenterWindowsEC2InstanceId `
- -Parameter @{commands = $commands} `
- -DocumentName "AWS-RunPowerShellScript" `
- -CloudWatchOutputConfig_CloudWatchLogGroupName "NetappFsxRdsLogs" `
- -CloudWatchOutputConfig_CloudWatchOutputEnabled $true
-
-for ($i = 1; $i -lt 13; $i++) {
- Write-Host "SnapCenter Installation In-Progress ${i}/12"
- Start-Sleep -Seconds 100
-}
-
-$ssm_output = Get-SSMCommandInvocation -CommandId $ssm.CommandId -Detail:$true | Select-Object -ExpandProperty CommandPlugins
-
-if ($ssm_output.Output -Match "ERROR"){
- Write-Host "SnapCenter Installation Failed with Error:"
- Write-Host $ssm_output.Output
- Write-Host "For Detailed Logs, refer to CloudWatch Logs: NetappFsxRdsLogs"
- exit
-}
-
-Write-Host "SnapCenter Installation Completed"
-
-#Custom Snapcenter function
-$commands = @(
- "Start-Transcript -Path 'C:\Users\Administrator\Desktop\Snp_config_transcript.txt'"
- "try{
-   Set-AWSCredential -AccessKey ${AwsAccessKey} -SecretKey ${AwsSecretKey}
-   `$ec2List = Get-EC2Instance -Filter @{'name'='instance-id';'values'='${CustomRdsEC2InstanceId}'}
-   `$noAgentList = `$ec2List.Instances | Where-Object {(`$_ | Select-Object -ExpandProperty tags | Where-Object -Property Key -eq Name ).value}
-   `$keyName = `$noAgentList.KeyName
-   `$ec2Ip = `$noAgentList.PrivateIpAddress
-   Get-SECSecretList | Where-Object{`$_.Name -like `$keyName } | ForEach-Object{`$ARN = `$_.ARN}
-   `$sec = Get-SECSecretValue -SecretId `$ARN
-   echo `$sec.SecretString > C:\\Users\\Administrator\\Desktop\\database.pem
-   `$pwdrds = Get-EC2PasswordData -InstanceId ${CustomRdsEC2InstanceId} -PemFile C:\\Users\\Administrator\\Desktop\\database.pem
-   get-module -listavailable snap* | import-module
-   `$pwd2 = Get-EC2PasswordData -InstanceId ${SnapCenterWindowsEC2InstanceId} -PemFile C:\\Users\\Administrator\\Desktop\\${S3PemFile}
-   `$pass = ConvertTo-SecureString `$pwd2 -asplaintext -force
-   `$cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList Administrator, `$pass
-   Open-SmConnection -Credential `$cred -RoleName 'SnapCenterAdmin'
-   `$passrds = ConvertTo-SecureString `$pwdrds -asplaintext -force
-   `$credrds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList Administrator, `$passrds
-   if ('${OsType}' -Match 'windows'){
-     Add-SmCredential -Name 'RDS_Cred' -CredentialType windows -Credential `$credrds -EnableSudoPrevileges `$False -Force
-     Add-SmHost -HostName `$ec2Ip  -OSType windows -CredentialName 'RDS_Cred' -donotaddclusternodes
-   }
-   else {
-     Add-SmCredential -Name 'RDS_Cred' -CredentialType '${OsType}' -Credential `$credrds -EnableSudoPrevileges `$False -Force
-     Add-SmHost -HostName `$ec2Ip  -OSType '${OsType}' -CredentialName 'RDS_Cred' -donotaddclusternodes
-   }
-   Start-Sleep -Seconds 360
-   `$pass = ConvertTo-SecureString ${FsxAdminPassword} -asplaintext -force
-   `$cred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList vsadmin, `$pass
-   Add-SmStorageconnection -SVM ${SvmMgmtIp} -Protocol https -Credential `$cred
-   Install-SmHostPackage -HostNames @(`$ec2Ip)  -PluginCodes SCSQL,SCW  -SkipPreinstallChecks:`$true -verbose -Force
-   Start-Sleep -Seconds 30
-   Set-SmPluginConfiguration -PluginCode SCSQL -HostName `$ec2Ip -HostLogFolders @{'Host'=`$ec2Ip;'Log Folder'='${LogFolderDriveLetter}'} -Verbose -IgnoreVscConfiguredCheck:`$true -confirm:`$false
-   `$flag_status = `$true
-   `$ctr = 1
-   while(`$flag_status -and `$ctr -le 10)
-   {
-     `$host_status =  Get-SmHost | Select HostStatus
-     `$plugin_status =  Get-SmHost -IncludePluginInfo `$true | Select PluginInstallStatus
-     if(`$plugin_status.Length -ge 3 -and `$plugin_status[1].PluginInstallStatus -eq 'ePluginStatusInstalled' -and `$plugin_status[2].PluginInstallStatus -eq 'ePluginStatusInstalled' -and `$plugin_status[3].PluginInstallStatus -eq 'ePluginStatusInstalled')
-     {
-     `$flag_status = `$false
-     }
-     Start-Sleep -Seconds 10
-     `$ctr = `$ctr + 1
-   }
-   if(`$flag_status)
-   {
-     throw 'Timed out while installing SnapCenter plugin on RDS Instance'
-   }
-
-   Add-SMPolicy -PolicyName 'rds_backup' -PolicyType 'Backup' -Description 'Full and log backup Policy'  -pluginpolicytype 'SCSQL' -sqlbackuptype 'Fullbackupandlogbackup'
-   del C:\\Users\\Administrator\\Desktop\\database.pem
-   del C:\\Users\\Administrator\\Desktop\\${S3PemFile}
- }
- catch{
-   Write-Host `$_
-   throw 'Error occurred while configuring SnapCenter and host plug-in'
- }"
-)
-
-Write-Host "SnapCenter Configuration and Host Plug-in Installation Started"
-
-$ssm = Send-SSMCommand `
- -InstanceId $SnapCenterWindowsEC2InstanceId `
- -Parameter @{commands = $commands} `
- -DocumentName "AWS-RunPowerShellScript" `
- -CloudWatchOutputConfig_CloudWatchLogGroupName "NetappFsxRdsLogs" `
- -CloudWatchOutputConfig_CloudWatchOutputEnabled $true
-
-
-for ($i = 1; $i -lt 11; $i++) {
- Write-Host "SnapCenter Installation In-Progress ${i}/10"
- Start-Sleep -Seconds 60
-}
-
-$ssm_output = Get-SSMCommandInvocation -CommandId $ssm.CommandId -Detail:$true | Select-Object -ExpandProperty CommandPlugins
-
-if ($ssm_output.Output -Match "ERROR"){
- Write-Host "SnapCenter Configuration Failed with Error:"
- Write-Host $ssm_output.Output
- Write-Host "For Detailed Logs, refer to CloudWatch Logs: NetappFsxRdsLogs"
- exit
-}
-
-Write-Host "SnapCenter and host plug-in Configuration complete"
 Write-Host "Execution Complete"
