@@ -6,8 +6,9 @@ This template also integrates the Netapp Snapcenter software with Fsx Ontap to a
 
 ## Scripts
 
-**rds_fsx.yaml**: CloudFormation script to mount FSx ONTAP volume on AWS RDS Custom Instance.
-**rds_fsx_with_snapcenter.yaml**: CloudFormation script to mount FSx ONTAP volume on AWS RDS Custom Instance with NetApp SnapCenter Installation and Setup.
+- **rds_fsx.yaml**: CloudFormation script to mount FSx ONTAP volume on AWS RDS Custom Instance.
+
+- **rds_fsx_with_snapcenter.yaml**: CloudFormation script to mount FSx ONTAP volume on AWS RDS Custom Instance with NetApp SnapCenter Installation and Setup.
 
 
 ## Pre-requisites

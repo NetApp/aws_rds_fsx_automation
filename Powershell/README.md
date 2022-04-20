@@ -7,8 +7,9 @@ This template also integrates the Netapp Snapcenter software with Fsx Ontap to a
 
 ## Scripts
 
-**rds_fsx.ps1**: Powershell script to mount FSx ONTAP volume on AWS RDS Custom Instance.
-**rds_fsx_with_snapcenter.ps1**: Powershell script to mount FSx ONTAP volume on AWS RDS Custom Instance with NetApp SnapCenter Installation and Setup.
+- **rds_fsx.ps1**: Powershell script to mount FSx ONTAP volume on AWS RDS Custom Instance.
+
+- **rds_fsx_with_snapcenter.ps1**: Powershell script to mount FSx ONTAP volume on AWS RDS Custom Instance with NetApp SnapCenter Installation and Setup.
 
 
 ## Pre-requisites
@@ -24,7 +25,7 @@ This template also integrates the Netapp Snapcenter software with Fsx Ontap to a
   Note: packages.zip and fsxLambdaFunction.zip can be found in the Powershell/Resources folder of this repository.
   ```
 
-- Fsx Ontap File System with NTFS-enabled SVM created along with Fsx and SVM passwords set
+- FSx Ontap File System with NTFS-enabled SVM created along with FSx and SVM passwords set
 
 - Ensure that the user account executing this script has the access to manage SSM, IAM, EC2 VPC Endpoint, Lambda and S3.
 
