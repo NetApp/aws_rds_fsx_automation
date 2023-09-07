@@ -71,7 +71,7 @@ In order to run the automation:
 1. Open a new Powershell console.
 2. Clone the repository.
     ```
-    git clone https://github.com/netapp-vedantsethia/aws_rds_fsx_automation.git
+    git clone https://github.com/NetApp/aws_rds_fsx_automation.git
     ```
 3. Navigate to the desired folder
     ```
